@@ -36,6 +36,7 @@ export default class PaperBit {
   private buffer: string;
   private pages: Array<string>;
   private currentPage: number;
+  private scaleFactor: Readonly<number>;
 
   constructor(private options: PDFOptions) {
     this.buffer = "%PDF-1.7\n";
@@ -48,6 +49,28 @@ export default class PaperBit {
     } else {
       this.pageWidth = PageFormats[options.format][1];
       this.pageHeight = PageFormats[options.format][0];
+    }
+
+    switch (options.unit) {
+      case "pt": {
+        this.scaleFactor = 1;
+        break;
+      }
+      case "mm": {
+        this.scaleFactor = 72 / 25.4;
+        break;
+      }
+      case "cm": {
+        this.scaleFactor = 72 / 2.54;
+        break;
+      }
+      case "inch": {
+        this.scaleFactor = 72;
+        break;
+      }
+      default: {
+        this.scaleFactor = 1;
+      }
     }
   }
 
