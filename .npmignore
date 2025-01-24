@@ -1,0 +1,16 @@
+### IDEs Artifacts ###
+.idea
+.vscode
+*.iml
+
+### GitHub Artifacts ###
+.github
+
+### NodeJS Artifacts ###
+node_modules
+
+### Source ###
+src
+
+### Website ###
+website
