@@ -20,4 +20,8 @@
  * SOFTWARE.
  */
 
-export { PaperBit } from "./core";
+export default interface PDFOptions {
+  format: "a4";
+  orientation: "portrait" | "landscape";
+  unit: "pt" | "mm" | "cm" | "inch";
+}

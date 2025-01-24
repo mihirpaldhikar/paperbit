@@ -20,4 +20,10 @@
  * SOFTWARE.
  */
 
-export { PaperBit } from "./core";
+import { PDFOptions } from "../types";
+
+export default class PaperBit {
+  constructor(private options: PDFOptions) {
+    console.log("Paper Bit", options);
+  }
+}

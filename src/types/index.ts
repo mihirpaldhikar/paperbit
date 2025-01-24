@@ -20,4 +20,4 @@
  * SOFTWARE.
  */
 
-export { PaperBit } from "./core";
+export type { default as PDFOptions } from "./PDFOptions";

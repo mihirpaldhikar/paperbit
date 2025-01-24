@@ -20,4 +20,4 @@
  * SOFTWARE.
  */
 
-export { PaperBit } from "./core";
+export { default as PaperBit } from "./PaperBit";
