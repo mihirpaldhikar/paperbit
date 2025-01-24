@@ -21,11 +21,6 @@
     "declarationMap": true,
     "pretty": true
   },
-  "include": [
-    "src/**/*",
-    "eslint.config.js"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["src/**/*", "eslint.config.js"],
+  "exclude": ["node_modules"]
 }

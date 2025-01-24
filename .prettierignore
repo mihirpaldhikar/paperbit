@@ -1,0 +1,14 @@
+### IDEs Artifacts ###
+.idea
+.vscode
+*.iml
+
+### NodeJS Artifacts ###
+node_modules
+
+### Build Artifacts ###
+dist
+.next
+
+### Bundler Configs ###
+rollup.config.js
