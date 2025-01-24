@@ -2,9 +2,8 @@
   "name": "@mihirpaldhikar/paperbit",
   "version": "0.0.1",
   "description": "A Toolkit for creating PDF.",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rollup -c"
   },
   "repository": {
     "type": "git",
@@ -21,15 +20,29 @@
   },
   "homepage": "https://github.com/mihirpaldhikar/paperbit#readme",
   "type": "module",
+  "module": "dist/esm/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "author": "Mihir Paldhikar",
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@rollup/plugin-commonjs": "^28.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^22.10.10",
+    "@types/rollup-plugin-peer-deps-external": "^2.2.5",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.3",
     "globals": "^15.14.0",
     "prettier": "^3.4.2",
+    "rollup": "^4.32.0",
+    "rollup-plugin-dts": "^6.1.1",
+    "rollup-plugin-peer-deps-external": "^2.2.4",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0"
   }
