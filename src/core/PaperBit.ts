@@ -23,7 +23,24 @@
 import { PDFOptions } from "../types";
 
 export default class PaperBit {
+  private buffer: string;
+  private pages: Array<string>;
+  private currentPage: number;
+
   constructor(private options: PDFOptions) {
-    console.log("Paper Bit", options);
+    this.buffer = "%PDF-1.7\n";
+    this.pages = [];
+    this.currentPage = 0;
+  }
+
+  private write(content: string) {
+    this.buffer += `${content}\n`;
+  }
+
+  private writeOnPage(content: string) {
+    if (this.pages[this.currentPage] === undefined) {
+      this.pages[this.currentPage] = "";
+    }
+    this.pages[this.currentPage] += `${content}\n`;
   }
 }
