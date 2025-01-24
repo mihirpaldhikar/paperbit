@@ -20,10 +20,4 @@
  * SOFTWARE.
  */
 
-import PageFormats from "../constants/PageFormats";
-
-export default interface PDFOptions {
-  format: keyof typeof PageFormats;
-  orientation: "portrait" | "landscape";
-  unit: "pt" | "mm" | "cm" | "inch";
-}
+export { default as PageFormats } from "./PageFormats";
