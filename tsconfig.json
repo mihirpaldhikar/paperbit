@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "declarationDir": "types",
+    "rootDir": "src",
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "strictFunctionTypes": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "alwaysStrict": true,
+    "declarationMap": true,
+    "pretty": true
+  },
+  "include": [
+    "src/**/*",
+    "eslint.config.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
