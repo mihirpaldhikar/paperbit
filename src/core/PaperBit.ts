@@ -21,8 +21,18 @@
  */
 
 import { PDFOptions } from "../types";
+import { PageFormats } from "../constants";
 
 export default class PaperBit {
+  /**
+   * @description Width of the page in pixels.
+   */
+  public pageWidth: Readonly<number>;
+  /**
+   * @description Height of the page in pixels.
+   */
+  public pageHeight: Readonly<number>;
+
   private buffer: string;
   private pages: Array<string>;
   private currentPage: number;
@@ -31,6 +41,14 @@ export default class PaperBit {
     this.buffer = "%PDF-1.7\n";
     this.pages = [];
     this.currentPage = 0;
+
+    if (options.orientation === "portrait") {
+      this.pageWidth = PageFormats[options.format][0];
+      this.pageHeight = PageFormats[options.format][1];
+    } else {
+      this.pageWidth = PageFormats[options.format][1];
+      this.pageHeight = PageFormats[options.format][0];
+    }
   }
 
   private write(content: string) {
