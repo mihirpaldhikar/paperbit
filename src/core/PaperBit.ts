@@ -85,7 +85,28 @@ export default class PaperBit {
 
   public insertPage() {
     this.pages[++this.currentPage] = "";
-    this.write(sprintf("%.2f w", this.lineWidth * this.scaleFactor));
+    this.writeOnPage(sprintf("%.2f w", this.lineWidth * this.scaleFactor));
+  }
+
+  public insertText(
+    text: string,
+    options: {
+      coordinates: {
+        x: number;
+        y: number;
+      };
+    },
+  ) {
+    const { coordinates } = options;
+    this.writeOnPage("BT /F1 16.00 Tf ET");
+    this.writeOnPage(
+      sprintf(
+        "BT %.2f %.2f Td (%s) Tj ET",
+        coordinates.x * this.scaleFactor,
+        (this.pageHeight - coordinates.y) * this.scaleFactor,
+        text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"),
+      ),
+    );
   }
 
   public generatePDF(): string {
@@ -100,27 +121,32 @@ export default class PaperBit {
   private generatePages() {
     for (let i = 0; i < this.pages.length; i++) {
       this.createObject();
-      this.write("<</Type /Page");
+      this.write("<<");
+      this.write("/Type /Page");
       this.write("/Parent 1 0 R");
       this.write("/Resources 2 0 R");
-      this.write(`/Contents ${this.objectCount + 1} 0 R>>`);
+      this.write(`/Contents ${this.objectCount + 1} 0 R`);
+      this.write(">>");
       this.write("endobj");
 
       const pageContent = this.pages[i];
       this.createObject();
-      this.write("<</Length " + pageContent.length + ">>");
+      this.write("<<");
+      this.write(`/Length ${pageContent.length}`);
+      this.write(">>");
       this.createStream(pageContent);
       this.write("endobj");
     }
 
     this.offsets[1] = this.buffer.length;
     this.write("1 0 obj");
-    this.write("<</Type /Pages");
-    let kids = "/Kids [";
+    this.write("<<");
+    this.write("/Type /Pages");
+    let kids = "/Kids [ ";
     for (let i = 0; i < this.pages.length; i++) {
-      kids += 3 + 2 * i + " 0 R ";
+      kids += `${3 + 2 * i} 0 R `;
     }
-    this.write(kids + "]");
+    this.write(`${kids} ]`);
     this.write("/Count " + this.pages.length);
     this.write(
       sprintf("/MediaBox [0 0 %.2f %.2f]", this.pageWidth, this.pageHeight),
@@ -132,9 +158,9 @@ export default class PaperBit {
   private generateResources() {
     // Fonts
     this.createObject();
-    const fontNumber = this.objectCount;
-    const fontName = "Helvetica-Bold";
-    this.write("<</Type /Font");
+    const fontName = "Helvetica";
+    this.write("<<");
+    this.write("/Type /Font");
     this.write(`/BaseFont /${fontName}`);
     this.write("/Subtype /Type1");
     this.write("/Encoding /WinAnsiEncoding");
@@ -143,6 +169,7 @@ export default class PaperBit {
 
     // Resource Directory
     this.offsets[2] = this.buffer.length;
+    const fontNumber = this.objectCount;
     this.write("2 0 obj");
     this.write("<<");
     this.write("/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]");
@@ -150,8 +177,8 @@ export default class PaperBit {
     this.write("<<");
     this.write(`/F1 ${fontNumber} 0 R`);
     this.write(">>");
-    this.write("<<");
     this.write("/XObject");
+    this.write("<<");
     this.write(">>");
     this.write(">>");
     this.write("endobj");
@@ -159,14 +186,22 @@ export default class PaperBit {
 
   private generateInfo() {
     const date = new Date();
+    const dateMetadata = [
+      date.getFullYear(),
+      date.getMonth() + 1,
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+    ];
     this.createObject();
     this.write("<<");
     this.write("/Producer (PaperBit)");
     this.write(
-      `/CreationDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds())})`,
+      `/CreationDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...dateMetadata)})`,
     );
     this.write(
-      `/ModDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds())})`,
+      `/ModDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...dateMetadata)})`,
     );
     this.write(">>");
     this.write("endobj");
@@ -203,7 +238,7 @@ export default class PaperBit {
     this.write(">>");
     this.write("startxref");
     this.write(`${bufferLength}`);
-    this.write("%%EOF");
+    this.write("%EOF");
   }
 
   private createObject() {
@@ -213,7 +248,7 @@ export default class PaperBit {
 
   private createStream(data: string) {
     this.write("stream");
-    this.write(data);
+    this.write(data.trim());
     this.write("endstream");
   }
 
