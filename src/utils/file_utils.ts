@@ -20,5 +20,17 @@
  * SOFTWARE.
  */
 
-export * from "./font_utils";
-export * from "./file_utils";
+export function getArrayBuffer(data: string): ArrayBuffer {
+  let len = data.length;
+  let ab = new ArrayBuffer(len);
+  let u8 = new Uint8Array(ab);
+
+  while (len--) u8[len] = data.charCodeAt(len);
+  return ab;
+}
+
+export function getBlob(data: string): Blob {
+  return new Blob([getArrayBuffer(data)], {
+    type: "application/pdf",
+  });
+}
