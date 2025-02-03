@@ -20,12 +20,27 @@
  * SOFTWARE.
  */
 
-import PageFormats from "../constants/PageFormats";
-import { TrueTypeFont } from "./document_font";
+export interface GenericFont {
+  id: string;
+  resourceId: number;
+  name: string;
+  kerning: number;
+  style:
+    | "bold"
+    | "italic"
+    | "oblique"
+    | "light"
+    | "medium"
+    | "semibold"
+    | "extrabold"
+    | "black"
+    | "thin"
+    | "condensed"
+    | "expanded"
+    | "regular";
+}
 
-export default interface PDFOptions {
-  format: keyof typeof PageFormats;
-  orientation: "portrait" | "landscape";
-  unit: "pt" | "mm" | "cm" | "inch";
-  fonts: Array<Omit<TrueTypeFont, "id" | "resourceId" | "type">>;
+export interface TrueTypeFont extends GenericFont {
+  type: "TrueType";
+  url: string;
 }

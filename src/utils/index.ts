@@ -20,12 +20,4 @@
  * SOFTWARE.
  */
 
-import PageFormats from "../constants/PageFormats";
-import { TrueTypeFont } from "./document_font";
-
-export default interface PDFOptions {
-  format: keyof typeof PageFormats;
-  orientation: "portrait" | "landscape";
-  unit: "pt" | "mm" | "cm" | "inch";
-  fonts: Array<Omit<TrueTypeFont, "id" | "resourceId" | "type">>;
-}
+export * from "./font_utils";

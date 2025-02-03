@@ -20,9 +20,10 @@
  * SOFTWARE.
  */
 
-import { PDFOptions } from "../types";
+import { PDFOptions, TrueTypeFont } from "../types";
 import { PageFormats } from "../constants";
 import { sprintf } from "sprintf-js";
+import { ttfTransformer } from "../utils";
 
 export default class PaperBit {
   /**
@@ -37,13 +38,15 @@ export default class PaperBit {
   private buffer: string;
   private currentPage: number;
   private objectCount: number;
+  private readonly fonts: Array<TrueTypeFont>;
   private readonly pages: Array<string>;
   private readonly scaleFactor: Readonly<number>;
   private readonly lineWidth: Readonly<number>;
   private readonly offsets: Array<number>;
 
   constructor(options: PDFOptions) {
-    this.buffer = "%PDF-1.7\n";
+    this.buffer = "%PDF-1.7\n%\xBA\xDF\xAC\xE0\n";
+    this.fonts = [];
     this.pages = [];
     this.offsets = [];
     this.currentPage = -1;
@@ -80,6 +83,9 @@ export default class PaperBit {
       }
     }
 
+    options.fonts.forEach((font) => {
+      this.insertFont(font);
+    });
     this.insertPage();
   }
 
@@ -109,13 +115,66 @@ export default class PaperBit {
     );
   }
 
-  public generatePDF(): string {
+  public async generatePDF(): Promise<string> {
+    this.offsets[1] = this.buffer.length;
+    this.write("1 0 obj");
+    this.write("<<");
+    this.write("/Type /Pages");
+    let kids = "/Kids [ ";
+    for (let i = 0; i < this.pages.length; i++) {
+      kids += `${3 + 2 * i} 0 R `;
+    }
+    this.write(`${kids}]`);
+    this.write("/Count " + this.pages.length);
+    this.write(
+      sprintf("/MediaBox [0 0 %.2f %.2f]", this.pageWidth, this.pageHeight),
+    );
+    this.write(">>");
+    this.write("endobj\n");
+
+    // Resource Directory
+    this.offsets[2] = this.buffer.length;
+    this.write("2 0 obj");
+    this.write("<<");
+    this.write("/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]");
+    this.write("/Font");
+    this.write("<<");
+    this.write("____FONTS____");
+    this.write(">>");
+    this.write("/XObject");
+    this.write("<<");
+    this.write(">>");
+    this.write(">>");
+    this.write("endobj\n");
+
     this.generatePages();
-    this.generateResources();
+    for (let font of this.fonts) {
+      await this.putFont(font);
+    }
     this.generateInfo();
     this.generateCatalog();
     this.generateCrossRefTableAndTrailer();
+
+    // Fonts
+    let fontLoc = "";
+    for (let font of this.fonts) {
+      fontLoc += `/${font.id} ${font.resourceId} 0 R\n`;
+    }
+
+    this.buffer = this.buffer.replace("____FONTS____", fontLoc.trim());
     return this.buffer;
+  }
+
+  private insertFont(font: PDFOptions["fonts"][number]) {
+    this.fonts.push({
+      id: `F${this.fonts.length + 1}`,
+      resourceId: this.objectCount,
+      name: font.name,
+      type: "TrueType",
+      style: font.style,
+      url: font.url,
+      kerning: font.kerning,
+    });
   }
 
   private generatePages() {
@@ -127,7 +186,7 @@ export default class PaperBit {
       this.write("/Resources 2 0 R");
       this.write(`/Contents ${this.objectCount + 1} 0 R`);
       this.write(">>");
-      this.write("endobj");
+      this.write("endobj\n");
 
       const pageContent = this.pages[i];
       this.createObject();
@@ -135,53 +194,8 @@ export default class PaperBit {
       this.write(`/Length ${pageContent.length}`);
       this.write(">>");
       this.createStream(pageContent);
-      this.write("endobj");
+      this.write("endobj\n");
     }
-
-    this.offsets[1] = this.buffer.length;
-    this.write("1 0 obj");
-    this.write("<<");
-    this.write("/Type /Pages");
-    let kids = "/Kids [ ";
-    for (let i = 0; i < this.pages.length; i++) {
-      kids += `${3 + 2 * i} 0 R `;
-    }
-    this.write(`${kids} ]`);
-    this.write("/Count " + this.pages.length);
-    this.write(
-      sprintf("/MediaBox [0 0 %.2f %.2f]", this.pageWidth, this.pageHeight),
-    );
-    this.write(">>");
-    this.write("endobj");
-  }
-
-  private generateResources() {
-    // Fonts
-    this.createObject();
-    const fontName = "Helvetica";
-    this.write("<<");
-    this.write("/Type /Font");
-    this.write(`/BaseFont /${fontName}`);
-    this.write("/Subtype /Type1");
-    this.write("/Encoding /WinAnsiEncoding");
-    this.write(">>");
-    this.write("endobj");
-
-    // Resource Directory
-    this.offsets[2] = this.buffer.length;
-    const fontNumber = this.objectCount;
-    this.write("2 0 obj");
-    this.write("<<");
-    this.write("/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]");
-    this.write("/Font");
-    this.write("<<");
-    this.write(`/F1 ${fontNumber} 0 R`);
-    this.write(">>");
-    this.write("/XObject");
-    this.write("<<");
-    this.write(">>");
-    this.write(">>");
-    this.write("endobj");
   }
 
   private generateInfo() {
@@ -197,6 +211,7 @@ export default class PaperBit {
     this.createObject();
     this.write("<<");
     this.write("/Producer (PaperBit)");
+    this.write("/Author (PaperBit)");
     this.write(
       `/CreationDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...dateMetadata)})`,
     );
@@ -204,7 +219,7 @@ export default class PaperBit {
       `/ModDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...dateMetadata)})`,
     );
     this.write(">>");
-    this.write("endobj");
+    this.write("endobj\n");
   }
 
   private generateCatalog() {
@@ -215,7 +230,7 @@ export default class PaperBit {
     this.write("/OpenAction [3 0 R /FitH null]");
     this.write("/PageLayout /OneColumn");
     this.write(">>");
-    this.write("endobj");
+    this.write("endobj\n");
   }
 
   private generateCrossRefTableAndTrailer() {
@@ -239,6 +254,47 @@ export default class PaperBit {
     this.write("startxref");
     this.write(`${bufferLength}`);
     this.write("%EOF");
+  }
+
+  private async putFont(font: TrueTypeFont) {
+    const { fontData, properties } = await ttfTransformer(font.url);
+
+    this.createObject();
+    font.resourceId = this.objectCount;
+    this.write("<<");
+    this.write("/Type /Font");
+    this.write(`/BaseFont /${font.name}`);
+    this.write("/Subtype /TrueType");
+    this.write("/Encoding /WinAnsiEncoding");
+    this.write(`/FontDescriptor ${this.objectCount + 1} 0 R`);
+    this.write(">>");
+    this.write("endobj\n");
+
+    this.createObject();
+    this.write("<<");
+    this.write("/Type /FontDescriptor");
+    this.write(`/BaseFont /${font.name}`);
+    this.write(`/Flags ${properties.flags}`);
+    this.write(`/FontBBox []`);
+    this.write(`/ItalicAngle ${properties.italicAngle}`);
+    this.write(`/Ascent ${properties.ascent}`);
+    this.write(`/Descent ${properties.descent}`);
+    this.write(`/CapHeight ${properties.capHeight}`);
+    this.write(`/StemV ${properties.stemV}`);
+    this.write(`/FirstChar ${properties.firstChar}`);
+    this.write(`/LastChar ${properties.lastChar}`);
+    this.write(`/FontFile2 ${this.objectCount + 1} 0 R`);
+    this.write(">>");
+    this.write("endobj");
+
+    this.createObject();
+    this.offsets[this.objectCount] = this.buffer.length;
+    this.write("<<");
+    this.write("/Filter /FlateDecode");
+    this.write(`/Length ${fontData.length}`);
+    this.write(">>");
+    this.createStream(fontData);
+    this.write("endobj");
   }
 
   private createObject() {

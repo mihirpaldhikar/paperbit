@@ -21,3 +21,4 @@
  */
 
 export type { default as PDFOptions } from "./PDFOptions";
+export type { TrueTypeFont, GenericFont } from "./document_font";
