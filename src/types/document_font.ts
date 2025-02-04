@@ -24,7 +24,6 @@ export interface GenericFont {
   id: string;
   resourceId: number;
   name: string;
-  kerning: number;
   style:
     | "bold"
     | "italic"

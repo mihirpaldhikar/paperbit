@@ -92,7 +92,6 @@ export default class PaperBit {
         type: "TrueType",
         style: font.style,
         url: font.url,
-        kerning: font.kerning,
       };
     });
     this.insertPage();
