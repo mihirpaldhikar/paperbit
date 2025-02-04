@@ -84,7 +84,15 @@ export default class PaperBit {
     }
 
     options.fonts.forEach((font) => {
-      this.insertFont(font);
+      this.fonts.push({
+        id: `F${this.fonts.length + 1}`,
+        resourceId: this.objectCount,
+        name: font.name,
+        type: "TrueType",
+        style: font.style,
+        url: font.url,
+        kerning: font.kerning,
+      });
     });
     this.insertPage();
   }
@@ -101,10 +109,26 @@ export default class PaperBit {
         x: number;
         y: number;
       };
+      font?: string;
     },
   ) {
-    const { coordinates } = options;
-    this.writeOnPage("BT /F1 16.00 Tf ET");
+    const {
+      coordinates,
+      font,
+    }: {
+      coordinates: {
+        x: number;
+        y: number;
+      };
+      font: string;
+    } = {
+      coordinates: options.coordinates,
+      font: options.font ?? this.fonts[0].name,
+    };
+
+    const { id } = this.fonts.filter((f) => f.name === font)[0];
+
+    this.writeOnPage(`BT /${id} 16.00 Tf ET`);
     this.writeOnPage(
       sprintf(
         "BT %.2f %.2f Td (%s) Tj ET",
@@ -163,18 +187,6 @@ export default class PaperBit {
 
     this.buffer = this.buffer.replace("____FONTS____", fontLoc.trim());
     return this.buffer;
-  }
-
-  private insertFont(font: PDFOptions["fonts"][number]) {
-    this.fonts.push({
-      id: `F${this.fonts.length + 1}`,
-      resourceId: this.objectCount,
-      name: font.name,
-      type: "TrueType",
-      style: font.style,
-      url: font.url,
-      kerning: font.kerning,
-    });
   }
 
   private generatePages() {
