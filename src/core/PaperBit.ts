@@ -38,7 +38,7 @@ export default class PaperBit {
   private buffer: string;
   private currentPage: number;
   private objectCount: number;
-  private readonly fonts: Array<TrueTypeFont>;
+  private readonly fonts: Record<string, TrueTypeFont>;
   private readonly pages: Array<string>;
   private readonly scaleFactor: Readonly<number>;
   private readonly lineWidth: Readonly<number>;
@@ -46,7 +46,7 @@ export default class PaperBit {
 
   constructor(options: PDFOptions) {
     this.buffer = "%PDF-1.7\n%\xBA\xDF\xAC\xE0\n";
-    this.fonts = [];
+    this.fonts = {};
     this.pages = [];
     this.offsets = [];
     this.currentPage = -1;
@@ -84,15 +84,16 @@ export default class PaperBit {
     }
 
     options.fonts.forEach((font) => {
-      this.fonts.push({
-        id: `F${this.fonts.length + 1}`,
+      const length = Object.keys(this.fonts).length;
+      this.fonts[font.name] = {
+        id: `F${length + 1}`,
         resourceId: this.objectCount,
         name: font.name,
         type: "TrueType",
         style: font.style,
         url: font.url,
         kerning: font.kerning,
-      });
+      };
     });
     this.insertPage();
   }
@@ -123,10 +124,10 @@ export default class PaperBit {
       font: string;
     } = {
       coordinates: options.coordinates,
-      font: options.font ?? this.fonts[0].name,
+      font: options.font ?? this.fonts[Object.keys(this.fonts)[0]].name,
     };
 
-    const { id } = this.fonts.filter((f) => f.name === font)[0];
+    const { id } = this.fonts[font] ?? this.fonts[Object.keys(this.fonts)[0]];
 
     this.writeOnPage(`BT /${id} 16.00 Tf ET`);
     this.writeOnPage(
@@ -172,8 +173,8 @@ export default class PaperBit {
     this.write("endobj\n");
 
     this.generatePages();
-    for (let font of this.fonts) {
-      await this.putFont(font);
+    for (let font in this.fonts) {
+      await this.putFont(this.fonts[font]);
     }
     this.generateInfo();
     this.generateCatalog();
@@ -181,8 +182,8 @@ export default class PaperBit {
 
     // Fonts
     let fontLoc = "";
-    for (let font of this.fonts) {
-      fontLoc += `/${font.id} ${font.resourceId} 0 R\n`;
+    for (let font in this.fonts) {
+      fontLoc += `/${this.fonts[font].id} ${this.fonts[font].resourceId} 0 R\n`;
     }
 
     this.buffer = this.buffer.replace("____FONTS____", fontLoc.trim());
