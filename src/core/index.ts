@@ -20,4 +20,4 @@
  * SOFTWARE.
  */
 
-export { default as PaperBit } from "./PaperBit";
+export { default as PaperBit } from "./paper_bit";

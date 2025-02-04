@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-import PageFormats from "../constants/PageFormats";
+import PageFormats from "../constants/page_formats";
 import { TrueTypeFont } from "./document_font";
 
 export default interface PDFOptions {

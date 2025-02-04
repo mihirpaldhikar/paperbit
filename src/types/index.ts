@@ -20,5 +20,5 @@
  * SOFTWARE.
  */
 
-export type { default as PDFOptions } from "./PDFOptions";
+export type { default as PDFOptions } from "./pdf_options";
 export type { TrueTypeFont, GenericFont } from "./document_font";

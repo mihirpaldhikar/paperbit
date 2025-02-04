@@ -20,4 +20,4 @@
  * SOFTWARE.
  */
 
-export { default as PageFormats } from "./PageFormats";
+export { default as PageFormats } from "./page_formats";
