@@ -20,7 +20,7 @@
  * SOFTWARE.
  */
 
-import { PDFOptions, TrueTypeFont } from "../types";
+import { NestedArray, PDFOptions, TrueTypeFont } from "../types";
 import { PageFormats } from "../constants";
 import { sprintf } from "sprintf-js";
 import {
@@ -143,6 +143,57 @@ export default class PaperBit {
     if (isViewBoxPage) {
       this.globalYTraker = height;
     }
+  }
+
+  public async insertList(
+    elements: NestedArray<string>,
+    options?: {
+      fontSize?: number;
+    },
+  ) {
+    const {
+      fontSize,
+    }: {
+      fontSize: number;
+    } = {
+      fontSize: options?.fontSize ?? 13,
+    };
+    const { url } = this.fonts[Object.keys(this.fonts)[0]];
+
+    const loadedFont = parse(await (await fetch(url)).arrayBuffer());
+    const listBuilder = async (
+      elements: NestedArray<string>,
+      level: number,
+    ) => {
+      let position = 1;
+      for (let i = 0; i < elements.length; i++) {
+        if (Array.isArray(elements[i])) {
+          await listBuilder(elements[i] as NestedArray<string>, level + 1);
+        } else {
+          const prefix = `${position++}.`;
+          await this.insertText(`${prefix} ${elements[i]}`, {
+            fontSize: fontSize,
+            paddingFromSecondLine: calculateTextWidth(prefix, {
+              font: loadedFont,
+              fontSize: fontSize,
+            }),
+            coordinates: {
+              x:
+                level *
+                Math.floor(
+                  calculateTextWidth(`${position}. `, {
+                    fontSize: fontSize,
+                    font: loadedFont,
+                  }),
+                ),
+              y: 0,
+            },
+          });
+        }
+      }
+    };
+
+    await listBuilder(elements, 0);
   }
 
   public async build(): Promise<Blob> {

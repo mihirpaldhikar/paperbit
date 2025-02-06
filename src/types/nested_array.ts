@@ -20,6 +20,6 @@
  * SOFTWARE.
  */
 
-export type { default as PDFOptions } from "./pdf_options";
-export type { TrueTypeFont, GenericFont } from "./document_font";
-export type { default as NestedArray } from "./nested_array";
+type NestedArray<T> = Array<T | NestedArray<T>>;
+
+export default NestedArray;
