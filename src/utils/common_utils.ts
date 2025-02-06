@@ -20,6 +20,22 @@
  * SOFTWARE.
  */
 
+import { deflate } from "pako";
+
+export function compressString(data: string): {
+  bufferLength: number;
+  compressedContent: string;
+} {
+  const compressedBuffer = deflate(data);
+
+  return {
+    bufferLength: compressedBuffer.length,
+    compressedContent: compressedBuffer.reduce(function (data, byte) {
+      return data + String.fromCharCode(byte);
+    }, ""),
+  };
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   hex = hex.replace(/^#/, "");
 

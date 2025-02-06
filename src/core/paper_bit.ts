@@ -23,7 +23,12 @@
 import { PDFOptions, TrueTypeFont } from "../types";
 import { PageFormats } from "../constants";
 import { sprintf } from "sprintf-js";
-import { calculateTextWidth, hexToRgb, ttfTransformer } from "../utils";
+import {
+  calculateTextWidth,
+  compressString,
+  hexToRgb,
+  ttfTransformer,
+} from "../utils";
 import { parse } from "opentype.js";
 
 export default class PaperBit {
@@ -201,9 +206,10 @@ export default class PaperBit {
       this.write("endobj\n");
 
       const pageContent = this.pages[i];
+      const { compressedContent, bufferLength } = compressString(pageContent);
       this.createObject();
-      this.write(`<</Length ${pageContent.length}>>`);
-      this.createStream(pageContent);
+      this.write(`<</Filter/FlateDecode/Length ${bufferLength}>>`);
+      this.createStream(compressedContent);
       this.write("endobj\n");
     }
 
