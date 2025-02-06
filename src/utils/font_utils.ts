@@ -21,7 +21,7 @@
  */
 
 import { deflate } from "pako";
-import { Font, parse } from "opentype.js";
+import { Font, Glyph, parse } from "opentype.js";
 
 export async function ttfTransformer(fontFaceURL: string): Promise<
   Readonly<{
@@ -97,4 +97,28 @@ export async function ttfTransformer(fontFaceURL: string): Promise<
       lastChar: maxCharCode,
     },
   };
+}
+
+export function calculateTextWidth(
+  text: string,
+  options: {
+    fontSize: number;
+    font: Font;
+  },
+): number {
+  if (!options.font || !text) return 0;
+
+  const scale = options.fontSize / options.font.unitsPerEm;
+  let width = 0,
+    prevGlyph: Glyph | null = null;
+
+  for (const char of text) {
+    const glyph = options.font.charToGlyph(char);
+    width += glyph.advanceWidth || 0;
+
+    if (prevGlyph) width += options.font.getKerningValue(prevGlyph, glyph) || 0;
+    prevGlyph = glyph;
+  }
+
+  return width * scale;
 }
