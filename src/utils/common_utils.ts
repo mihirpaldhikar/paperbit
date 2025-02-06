@@ -20,6 +20,22 @@
  * SOFTWARE.
  */
 
-export * from "./font_utils";
-export * from "./file_utils";
-export * from "./common_utils";
+export function hexToRgb(hex: string): [number, number, number] {
+  hex = hex.replace(/^#/, "");
+
+  if (!/^([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex)) {
+    throw new Error("Invalid HEX color code");
+  }
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  return [r, g, b];
+}
