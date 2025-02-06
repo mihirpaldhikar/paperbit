@@ -28,4 +28,8 @@ export default interface PDFOptions {
   orientation: "portrait" | "landscape";
   unit: "pt" | "mm" | "cm" | "inch";
   fonts: Array<Omit<TrueTypeFont, "id" | "resourceId" | "type">>;
+  margin: {
+    horizontal: number;
+    vertical: number;
+  };
 }
