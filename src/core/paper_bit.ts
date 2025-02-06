@@ -140,7 +140,7 @@ export default class PaperBit {
     }
   }
 
-  public async build(): Promise<string> {
+  public async build(): Promise<Blob> {
     /**
      * Catalog
      */
@@ -251,7 +251,12 @@ export default class PaperBit {
       resource.trim(),
     );
 
-    return this.buffer;
+    let len = this.buffer.length;
+    let pdfBinary = new ArrayBuffer(len);
+    let u8 = new Uint8Array(pdfBinary);
+
+    while (len--) u8[len] = this.buffer.charCodeAt(len);
+    return new Blob([pdfBinary], { type: "application/pdf" });
   }
 
   private async putFont(font: TrueTypeFont) {
