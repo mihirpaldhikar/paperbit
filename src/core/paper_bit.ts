@@ -53,7 +53,7 @@ export default class PaperBit {
     this.offsets = [];
     this.currentPage = -1;
     this.lineWidth = 0.200025;
-    this.objectCount = 2;
+    this.objectCount = 4;
 
     if (globalOptions.orientation === "portrait") {
       this.pageWidth = PageFormats[globalOptions.format][0];
@@ -140,80 +140,20 @@ export default class PaperBit {
     }
   }
 
-  public async generatePDF(): Promise<string> {
+  public async build(): Promise<string> {
+    /**
+     * Catalog
+     */
     this.offsets[1] = this.buffer.length;
     this.write("1 0 obj");
-    this.write("<<");
-    this.write("/Type /Pages");
-    let kids = "/Kids [ ";
-    for (let i = 0; i < this.pages.length; i++) {
-      kids += `${3 + 2 * i} 0 R `;
-    }
-    this.write(`${kids}]`);
-    this.write("/Count " + this.pages.length);
-    this.write(
-      sprintf("/MediaBox [0 0 %.2f %.2f]", this.pageWidth, this.pageHeight),
-    );
-    this.write(">>");
+    this.write("<</Pages 3 0 R /Type/Catalog>>");
     this.write("endobj\n");
 
-    // Resource Directory
-    this.offsets[2] = this.buffer.length;
-    this.write("2 0 obj");
-    this.write("<<");
-    this.write("/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]");
-    this.write("/Font");
-    this.write("<<");
-    this.write("____FONTS____");
-    this.write(">>");
-    this.write("/XObject");
-    this.write("<<");
-    this.write(">>");
-    this.write(">>");
-    this.write("endobj\n");
-
-    this.generatePages();
-    for (let font in this.fonts) {
-      await this.putFont(this.fonts[font]);
-    }
-    this.generateInfo();
-    this.generateCatalog();
-    this.generateCrossRefTableAndTrailer();
-
-    // Fonts
-    let fontLoc = "";
-    for (let font in this.fonts) {
-      fontLoc += `/${this.fonts[font].id} ${this.fonts[font].resourceId} 0 R\n`;
-    }
-
-    this.buffer = this.buffer.replace("____FONTS____", fontLoc.trim());
-    return this.buffer;
-  }
-
-  private generatePages() {
-    for (let i = 0; i < this.pages.length; i++) {
-      this.createObject();
-      this.write("<<");
-      this.write("/Type /Page");
-      this.write("/Parent 1 0 R");
-      this.write("/Resources 2 0 R");
-      this.write(`/Contents ${this.objectCount + 1} 0 R`);
-      this.write(">>");
-      this.write("endobj\n");
-
-      const pageContent = this.pages[i];
-      this.createObject();
-      this.write("<<");
-      this.write(`/Length ${pageContent.length}`);
-      this.write(">>");
-      this.createStream(pageContent);
-      this.write("endobj\n");
-    }
-  }
-
-  private generateInfo() {
+    /**
+     * Metadata
+     */
     const date = new Date();
-    const dateMetadata = [
+    const timestamp = [
       date.getFullYear(),
       date.getMonth() + 1,
       date.getDate(),
@@ -221,35 +161,63 @@ export default class PaperBit {
       date.getMinutes(),
       date.getSeconds(),
     ];
-    this.createObject();
-    this.write("<<");
-    this.write("/Producer (PaperBit)");
-    this.write("/Author (PaperBit)");
+    this.offsets[2] = this.buffer.length;
+    this.write("2 0 obj");
     this.write(
-      `/CreationDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...dateMetadata)})`,
+      `<</CreationDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...timestamp)})/ModDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...timestamp)})/Author(PaperBit)/Creator(PaperBit)/Producer(PaperBit)>>`,
     );
+    this.write("endobj\n");
+
+    /**
+     * Page Indexes
+     */
+    this.offsets[3] = this.buffer.length;
+    let kids = "/Kids [ ";
+    for (let i = 0; i < this.pages.length; i++) {
+      kids += `${5 + 2 * i} 0 R `;
+    }
+    this.write("3 0 obj");
+    this.write(`<</Count ${this.pages.length}${kids}]/Type/Pages>>`);
+    this.write("endobj\n");
+
+    /**
+     * Resources
+     */
+    this.offsets[4] = this.buffer.length;
+    this.write("4 0 obj");
     this.write(
-      `/ModDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...dateMetadata)})`,
+      `<</Font<<____FONTS_PLACEHOLDER____>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI]/XObject<<>>>>`,
     );
-    this.write(">>");
     this.write("endobj\n");
-  }
 
-  private generateCatalog() {
-    this.createObject();
-    this.write("<<");
-    this.write("/Type /Catalog");
-    this.write("/Pages 1 0 R");
-    this.write("/OpenAction [3 0 R /FitH null]");
-    this.write("/PageLayout /OneColumn");
-    this.write(">>");
-    this.write("endobj\n");
-  }
+    /**
+     * Pages
+     */
+    for (let i = 0; i < this.pages.length; i++) {
+      this.createObject();
+      this.write(
+        `<</Contents ${this.objectCount + 1} 0 R ${sprintf("/MediaBox[0 0 %.2f %.2f]", this.pageWidth, this.pageHeight)}/Parent 3 0 R /Resources 4 0 R /Type/Page>>`,
+      );
+      this.write("endobj\n");
 
-  private generateCrossRefTableAndTrailer() {
+      const pageContent = this.pages[i];
+      this.createObject();
+      this.write(`<</Length ${pageContent.length}>>`);
+      this.createStream(pageContent);
+      this.write("endobj\n");
+    }
+
+    /**
+     * Fonts
+     */
+    for (let fontName in this.fonts) {
+      await this.putFont(this.fonts[fontName]);
+    }
+
+    /**
+     * Cross-Ref Table
+     */
     const bufferLength = this.buffer.length;
-
-    // Cross-Ref Table
     this.write("xref");
     this.write(`0 ${this.objectCount + 1}`);
     this.write("0000000000 65535 f ");
@@ -257,57 +225,68 @@ export default class PaperBit {
       this.write(sprintf("%010d 00000 n ", this.offsets[i]));
     }
 
-    // Trailer
+    /**
+     * Trailer
+     */
     this.write("trailer");
     this.write("<<");
+    this.write(`/Root 1 0 R`);
+    this.write(`/Info 2 0 R`);
     this.write(`/Size ${this.objectCount + 1}`);
-    this.write(`/Root ${this.objectCount} 0 R`);
-    this.write(`/Info ${this.objectCount - 1} 0 R`);
     this.write(">>");
     this.write("startxref");
     this.write(`${bufferLength}`);
-    this.write("%EOF");
+    this.write("%%EOF");
+
+    /**
+     * Replace Fonts Placeholder with actual resource data.
+     */
+    let resource = "";
+    for (let fontName in this.fonts) {
+      resource += `/${this.fonts[fontName].id} ${this.fonts[fontName].resourceId} 0 R `;
+    }
+
+    this.buffer = this.buffer.replace(
+      "____FONTS_PLACEHOLDER____",
+      resource.trim(),
+    );
+
+    return this.buffer;
   }
 
   private async putFont(font: TrueTypeFont) {
-    const { fontData, properties } = await ttfTransformer(font.url);
+    const {
+      fontData,
+      properties: {
+        ascent,
+        capHeight,
+        descent,
+        firstChar,
+        flags,
+        italicAngle,
+        lastChar,
+        stemV,
+      },
+    } = await ttfTransformer(font.url);
 
     this.createObject();
     font.resourceId = this.objectCount;
-    this.write("<<");
-    this.write("/Type /Font");
-    this.write(`/BaseFont /${font.name}`);
-    this.write("/Subtype /TrueType");
-    this.write("/Encoding /WinAnsiEncoding");
-    this.write(`/FontDescriptor ${this.objectCount + 1} 0 R`);
-    this.write(">>");
+    this.write(
+      `<</BaseFont/${font.name}/Encoding/WinAnsiEncoding/FontDescriptor ${this.objectCount + 1} 0 R /Subtype/TrueType/Type/Font>>`,
+    );
     this.write("endobj\n");
 
     this.createObject();
-    this.write("<<");
-    this.write("/Type /FontDescriptor");
-    this.write(`/BaseFont /${font.name}`);
-    this.write(`/Flags ${properties.flags}`);
-    this.write(`/FontBBox []`);
-    this.write(`/ItalicAngle ${properties.italicAngle}`);
-    this.write(`/Ascent ${properties.ascent}`);
-    this.write(`/Descent ${properties.descent}`);
-    this.write(`/CapHeight ${properties.capHeight}`);
-    this.write(`/StemV ${properties.stemV}`);
-    this.write(`/FirstChar ${properties.firstChar}`);
-    this.write(`/LastChar ${properties.lastChar}`);
-    this.write(`/FontFile2 ${this.objectCount + 1} 0 R`);
-    this.write(">>");
-    this.write("endobj");
+    this.write(
+      `<</Ascent ${ascent}/BaseFont /${font.name}/CapHeight ${capHeight}/Descent ${descent}/FirstChar ${firstChar}/Flags ${flags}/FontBBox []/FontFile2 ${this.objectCount + 1} 0 R /ItalicAngle ${italicAngle}/LastChar ${lastChar}/StemV ${stemV}/Type/FontDescriptor>>`,
+    );
+    this.write("endobj\n");
 
     this.createObject();
     this.offsets[this.objectCount] = this.buffer.length;
-    this.write("<<");
-    this.write("/Filter /FlateDecode");
-    this.write(`/Length ${fontData.length}`);
-    this.write(">>");
+    this.write(`<</Filter/FlateDecode/Length ${fontData.length}>>`);
     this.createStream(fontData);
-    this.write("endobj");
+    this.write("endobj\n");
   }
 
   private async text(
