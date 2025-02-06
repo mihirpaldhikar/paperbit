@@ -44,7 +44,7 @@ export default class PaperBit {
   private buffer: string;
   private currentPage: number;
   private objectCount: number;
-  private globalYTraker: number;
+  private globalYTracker: number;
   private readonly fonts: Record<string, TrueTypeFont>;
   private readonly pages: Array<string>;
   private readonly scaleFactor: Readonly<number>;
@@ -90,7 +90,7 @@ export default class PaperBit {
       }
     }
 
-    this.globalYTraker = 2 * globalOptions.margin.horizontal;
+    this.globalYTracker = 2 * globalOptions.margin.horizontal;
 
     globalOptions.fonts.forEach((font) => {
       const length = Object.keys(this.fonts).length;
@@ -141,7 +141,7 @@ export default class PaperBit {
     this.writeOnPage(buffer);
 
     if (isViewBoxPage) {
-      this.globalYTraker = height;
+      this.globalYTracker = height;
     }
   }
 
@@ -447,7 +447,7 @@ export default class PaperBit {
 
     const lineHeight = Math.floor(fontSize / 0.75);
 
-    let yTracker = isViewBoxPage ? this.globalYTraker : viewBox.coordinates.y;
+    let yTracker = isViewBoxPage ? this.globalYTracker : viewBox.coordinates.y;
     let maxLineWidth = 0;
 
     const characters = text.split("");
