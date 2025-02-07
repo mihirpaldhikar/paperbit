@@ -23,3 +23,4 @@
 export * from "./font_utils";
 export * from "./file_utils";
 export * from "./common_utils";
+export * from "./image_utils";
