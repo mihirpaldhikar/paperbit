@@ -27,6 +27,7 @@ import {
   calculateTextWidth,
   compressString,
   hexToRgb,
+  imageTransformer,
   ttfTransformer,
 } from "../utils";
 import { parse } from "opentype.js";
@@ -45,6 +46,20 @@ export default class PaperBit {
   private currentPage: number;
   private objectCount: number;
   private globalYTracker: number;
+  private images: Record<
+    number,
+    {
+      width: number;
+      height: number;
+      colorSpace: string;
+      filter: string;
+      index: number;
+      length: number;
+      bitsPerComponent: number;
+      data: string;
+      resourceId: number;
+    }
+  >;
   private readonly fonts: Record<string, TrueTypeFont>;
   private readonly pages: Array<string>;
   private readonly scaleFactor: Readonly<number>;
@@ -54,6 +69,7 @@ export default class PaperBit {
   constructor(private globalOptions: PDFOptions) {
     this.buffer = "%PDF-1.7\n%\xBA\xDF\xAC\xE0\n";
     this.fonts = {};
+    this.images = {};
     this.pages = [];
     this.offsets = [];
     this.currentPage = -1;
@@ -196,6 +212,96 @@ export default class PaperBit {
     await listBuilder(elements, 0);
   }
 
+  public async insertImage(
+    url: string,
+    options: {
+      width: number;
+      height: number;
+      coordinates?: {
+        x: number;
+        y: number;
+      };
+      enableAutoPosition?: boolean;
+      align?: "left" | "right" | "center";
+    },
+  ) {
+    const {
+      width,
+      height,
+      coordinates,
+      enableAutoPosition,
+      align,
+    }: {
+      width: number;
+      height: number;
+      coordinates: {
+        x: number;
+        y: number;
+      };
+      enableAutoPosition: boolean;
+      align: "left" | "right" | "center";
+    } = {
+      width: options.width,
+      height: options.height,
+      coordinates: options.coordinates ?? {
+        x: 0,
+        y: 0,
+      },
+      enableAutoPosition: options.enableAutoPosition ?? true,
+      align: options.align ?? "center",
+    };
+
+    if (
+      this.globalYTracker + coordinates.x + height >
+      this.pageHeight - 2 * this.globalOptions.margin.horizontal
+    ) {
+      this.insertPage();
+      this.globalYTracker = 2 * this.globalOptions.margin.horizontal;
+    }
+    const imageIndex = Object.keys(this.images).length;
+    const {
+      compressedImage,
+      properties: { length, width: imageWidth, height: imageHeight, type },
+    } = await imageTransformer(url);
+
+    this.images[imageIndex] = {
+      width: imageWidth,
+      height: imageHeight,
+      colorSpace: "DeviceRGB",
+      bitsPerComponent: 8,
+      filter: type === "png" ? "FlateDecode" : "DCTDecode",
+      index: imageIndex,
+      data: compressedImage,
+      length: length,
+      resourceId: 0,
+    };
+
+    const xCoord =
+      align === "center"
+        ? (this.pageWidth - width) / 2
+        : align === "right"
+          ? this.pageWidth - width - this.globalOptions.margin.vertical
+          : coordinates.x + this.globalOptions.margin.vertical;
+    this.writeOnPage(
+      sprintf(
+        "q %.2f 0 0 %.2f %.2f %.2f cm /I%d Do Q",
+        width * this.scaleFactor,
+        height * this.scaleFactor,
+        xCoord * this.scaleFactor,
+        (this.pageHeight -
+          (enableAutoPosition ? this.globalYTracker : 0) -
+          coordinates.y -
+          height) *
+          this.scaleFactor,
+        imageIndex,
+      ),
+    );
+
+    if (enableAutoPosition) {
+      this.globalYTracker += coordinates.y + height + 10;
+    }
+  }
+
   public async build(): Promise<Blob> {
     /**
      * Catalog
@@ -242,7 +348,7 @@ export default class PaperBit {
     this.offsets[4] = this.buffer.length;
     this.write("4 0 obj");
     this.write(
-      `<</Font<<____FONTS_PLACEHOLDER____>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI]/XObject<<>>>>`,
+      `<</Font<<____FONTS_PLACEHOLDER____>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI]/XObject<<____IMAGES_PLACEHOLDER____>>>>`,
     );
     this.write("endobj\n");
 
@@ -269,6 +375,13 @@ export default class PaperBit {
      */
     for (let fontName in this.fonts) {
       await this.putFont(this.fonts[fontName]);
+    }
+
+    /**
+     * Images
+     */
+    for (let imageId in this.images) {
+      this.putImage(parseInt(imageId));
     }
 
     /**
@@ -305,6 +418,19 @@ export default class PaperBit {
 
     this.buffer = this.buffer.replace(
       "____FONTS_PLACEHOLDER____",
+      resource.trim(),
+    );
+
+    /**
+     * Replace Images Placeholder with actual resource data.
+     */
+    resource = "";
+    for (let imageId in this.images) {
+      resource += `/I${this.images[imageId].index} ${this.images[imageId].resourceId} 0 R `;
+    }
+
+    this.buffer = this.buffer.replace(
+      "____IMAGES_PLACEHOLDER____",
       resource.trim(),
     );
 
@@ -348,6 +474,17 @@ export default class PaperBit {
     this.offsets[this.objectCount] = this.buffer.length;
     this.write(`<</Filter/FlateDecode/Length ${fontData.length}>>`);
     this.createStream(fontData);
+    this.write("endobj\n");
+  }
+
+  private putImage(imgIndex: number) {
+    this.offsets[++this.objectCount] = this.buffer.length;
+    this.images[imgIndex].resourceId = this.objectCount;
+    this.write(`${this.objectCount} 0 obj`);
+    this.write(
+      `<</BitsPerComponent ${this.images[imgIndex].bitsPerComponent}/ColorSpace/${this.images[imgIndex].colorSpace}/Filter/${this.images[imgIndex].filter}/Height ${this.images[imgIndex].height}/Length ${this.images[imgIndex].length}/Subtype/Image/Type/XObject/Width ${this.images[imgIndex].width}>>`,
+    );
+    this.createStream(this.images[imgIndex].data);
     this.write("endobj\n");
   }
 
