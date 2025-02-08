@@ -212,6 +212,226 @@ export default class PaperBit {
     await listBuilder(elements, 0);
   }
 
+  public async insertTable(
+    headers: Array<{
+      content: string;
+      options?: {
+        alignment?: "center" | "left" | "right";
+        width?: number;
+      };
+    }>,
+    rows: Array<Array<string>>,
+    options?: {
+      viewBox?:
+        | "page"
+        | {
+            height: number;
+            width: number;
+            coordinates: {
+              x: number;
+              y: number;
+            };
+          };
+    },
+  ) {
+    const {
+      viewBox,
+    }: {
+      viewBox: {
+        height: number;
+        width: number;
+        coordinates: {
+          x: number;
+          y: number;
+        };
+      };
+    } = {
+      viewBox:
+        options?.viewBox === undefined || options?.viewBox === "page"
+          ? {
+              height:
+                this.pageHeight - 2 * this.globalOptions.margin.horizontal,
+              width: this.pageWidth - 2 * this.globalOptions.margin.vertical,
+              coordinates: {
+                x: 0,
+                y: 0,
+              },
+            }
+          : {
+              coordinates: options.viewBox.coordinates,
+              height: options.viewBox.height * this.scaleFactor,
+              width: options.viewBox.width * this.scaleFactor,
+            },
+    };
+
+    const maxColumnWidth = viewBox.width / headers.length;
+    const cells: Array<{
+      columns: Array<{
+        width: number;
+        content: string;
+        x: number;
+      }>;
+      height: number;
+
+      type: "header" | "body";
+    }> = [];
+    let xTracker = this.globalOptions.margin.vertical;
+    let yTracker = this.globalYTracker;
+
+    const row: (typeof cells)[number] = {
+      columns: [],
+      height: 0,
+
+      type: "header",
+    };
+    for (let i = 0; i < headers.length; i++) {
+      const width = headers[i].options?.width ?? maxColumnWidth;
+      const { buffer, height } = await this.text(headers[i].content, {
+        align: headers[i].options?.alignment ?? "center",
+        coordinates: {
+          x: 0,
+          y: 2,
+        },
+        viewBox: {
+          width: width,
+          height: 0,
+          coordinates: {
+            x: xTracker,
+            y: yTracker,
+          },
+        },
+      });
+
+      row.columns.push({
+        content: buffer,
+        x: xTracker,
+        width: width,
+      });
+
+      xTracker += width;
+      row.height = Math.max(row.height, height);
+    }
+
+    xTracker = this.globalOptions.margin.vertical;
+    yTracker += row.height;
+
+    cells.push(row);
+
+    for (let i = 0; i < rows.length; i++) {
+      const row: (typeof cells)[number] = {
+        columns: [],
+        height: 0,
+        type: "body",
+      };
+      for (let j = 0; j < headers.length; j++) {
+        if (headers.length > rows[i].length) {
+          throw new Error(
+            "Number of table headers and table body columns should be equal.",
+          );
+        }
+        const width = headers[j].options?.width ?? maxColumnWidth;
+
+        const { buffer, height } = await this.text(rows[i][j], {
+          align: headers[j].options?.alignment ?? "left",
+          coordinates: {
+            x: 4,
+            y: 0,
+          },
+          viewBox: {
+            width: width,
+            height: 0,
+            coordinates: {
+              x: xTracker,
+              y: yTracker,
+            },
+          },
+        });
+
+        row.columns.push({
+          content: buffer,
+          x: xTracker,
+          width: width,
+        });
+
+        xTracker += width;
+        row.height = Math.max(row.height, height);
+      }
+
+      xTracker = this.globalOptions.margin.vertical;
+      yTracker += row.height;
+
+      cells.push(row);
+    }
+
+    yTracker = this.globalYTracker;
+    let i = 0;
+    while (i < cells.length) {
+      for (let j = 0; j < cells[i].columns.length; j++) {
+        this.drawFilledRectangleWithBorder(
+          cells[i].columns[j].x,
+          yTracker,
+          cells[i].columns[j].width,
+          cells[i].height,
+          cells[i].type === "header" ? "#eaeaea" : "#ffffff",
+          "#171717",
+          0.5,
+        );
+
+        this.writeOnPage(cells[i].columns[j].content);
+      }
+
+      yTracker += cells[i].height;
+      ++i;
+    }
+
+    this.globalYTracker = yTracker;
+  }
+
+  /**
+   * Generates a PDF command to draw and fill a rectangle with a border.
+   * @param x - X coordinate of the bottom-left corner
+   * @param y - Y coordinate of the bottom-left corner
+   * @param width - Width of the rectangle
+   * @param height - Height of the rectangle
+   * @param fillColor - RGB color for the fill as [r, g, b] (values between 0 and 1)
+   * @param borderColor - RGB color for the border as [r, g, b] (default: black)
+   * @param borderWidth - Width of the border stroke (default: 1)
+   */
+  public drawFilledRectangleWithBorder(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    fillColor: string, // Default gray fill
+    borderColor: string, // Default black border
+    borderWidth: number,
+  ) {
+    const [fr, fg, fb] = hexToRgb(fillColor);
+    const [br, bg, bb] = hexToRgb(borderColor);
+
+    this.writeOnPage("q");
+    this.writeOnPage(`${borderWidth} w`);
+    this.writeOnPage("/DeviceRGB cs");
+    this.writeOnPage("/DeviceRGB CS");
+    this.writeOnPage(
+      sprintf("%.3f %.3f %.3f RG", br / 255, bg / 255, bb / 255),
+    );
+    this.writeOnPage(
+      sprintf("%.3f %.3f %.3f rg", fr / 255, fg / 255, fb / 255),
+    );
+    this.writeOnPage(
+      sprintf(
+        "%.2f %.2f %.2f %.2f re",
+        x * this.scaleFactor,
+        (this.pageHeight - y) * this.scaleFactor,
+        width * this.scaleFactor,
+        -height * this.scaleFactor,
+      ),
+    );
+    this.writeOnPage("B");
+    this.writeOnPage("Q");
+  }
+
   public async insertImage(
     url: string,
     options: {
