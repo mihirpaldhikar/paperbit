@@ -46,7 +46,7 @@ export default class PaperBit {
   private currentPage: number;
   private objectCount: number;
   private globalYTracker: number;
-  private images: Record<
+  private readonly images: Record<
     number,
     {
       width: number;
