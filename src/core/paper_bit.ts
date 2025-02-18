@@ -25,12 +25,12 @@ import { PageFormats } from "../constants";
 import { sprintf } from "sprintf-js";
 import {
   calculateTextWidth,
-  compressString,
   hexToRgb,
   imageTransformer,
   ttfTransformer,
 } from "../utils";
 import { parse } from "opentype.js";
+import ExtendedString from "./extended_string";
 
 export default class PaperBit {
   /**
@@ -583,10 +583,13 @@ export default class PaperBit {
       this.write("endobj\n");
 
       const pageContent = this.pages[i];
-      const { compressedContent, bufferLength } = compressString(pageContent);
+      const { compressedContent, bufferLength } =
+        ExtendedString.compress(pageContent);
       this.createObject();
       this.write(`<</Filter/FlateDecode/Length ${bufferLength}>>`);
-      this.createStream(compressedContent);
+      this.createStream(
+        ExtendedString.fromUint8ArrayToString(compressedContent),
+      );
       this.write("endobj\n");
     }
 
