@@ -25,7 +25,7 @@ import { Font, Glyph, parse } from "opentype.js";
 
 export async function ttfTransformer(fontFaceURL: string): Promise<
   Readonly<{
-    fontData: Readonly<string>;
+    fontData: Readonly<Uint8Array>;
     properties: Readonly<{
       fontBBox: Array<number>;
       italicAngle: number;
@@ -82,9 +82,7 @@ export async function ttfTransformer(fontFaceURL: string): Promise<
   }
 
   return {
-    fontData: compressedFont.reduce((data, bytes) => {
-      return data + String.fromCharCode(bytes);
-    }, ""),
+    fontData: compressedFont,
     properties: {
       fontBBox: bbox,
       italicAngle: italicAngle,

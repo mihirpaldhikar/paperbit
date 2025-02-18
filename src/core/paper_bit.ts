@@ -31,6 +31,8 @@ import {
 } from "../utils";
 import { parse } from "opentype.js";
 import ExtendedString from "./extended_string";
+import PDFSecurity from "./pdf_security";
+import Cryptography from "./cryptography";
 
 export default class PaperBit {
   /**
@@ -65,16 +67,31 @@ export default class PaperBit {
   private readonly scaleFactor: Readonly<number>;
   private readonly lineWidth: Readonly<number>;
   private readonly offsets: Array<number>;
+  private readonly pdfIdentifier: Readonly<Uint8Array>;
+  private readonly pdfSecurity: Readonly<PDFSecurity | null>;
+  private readonly headerLength: Readonly<number>;
 
   constructor(private globalOptions: PDFOptions) {
     this.buffer = "%PDF-1.7\n%\xBA\xDF\xAC\xE0\n";
+    this.headerLength = this.buffer.length;
     this.fonts = {};
     this.images = {};
     this.pages = [];
     this.offsets = [];
     this.currentPage = -1;
     this.lineWidth = 0.200025;
-    this.objectCount = 4;
+    this.objectCount = 0;
+    this.pdfIdentifier = Cryptography.generateRandomBytes(32);
+
+    if (globalOptions.security !== undefined) {
+      this.pdfSecurity = new PDFSecurity({
+        password: globalOptions.security.password,
+        permissions: globalOptions.security.permissions,
+        pdfIdentifier: this.pdfIdentifier,
+      });
+    } else {
+      this.pdfSecurity = null;
+    }
 
     if (globalOptions.orientation === "portrait") {
       this.pageWidth = PageFormats[globalOptions.format][0];
@@ -523,13 +540,38 @@ export default class PaperBit {
   }
 
   public async build(): Promise<Blob> {
+    let encryptionDictionaryObjectId: number | null = null;
+
     /**
      * Catalog
      */
-    this.offsets[1] = this.buffer.length;
-    this.write("1 0 obj");
-    this.write("<</Pages 3 0 R /Type/Catalog>>");
+    this.offsets[++this.objectCount] = 0;
+    const rootDictionaryObjectId = this.objectCount;
+    this.write(`${rootDictionaryObjectId} 0 obj`);
+    this.write(
+      `<</Pages ${rootDictionaryObjectId + (this.globalOptions.security?.password !== undefined ? 4 : 3)} 0 R /Type/Catalog>>`,
+    );
     this.write("endobj\n");
+
+    if (this.pdfSecurity !== null) {
+      this.offsets[++this.objectCount] = this.buffer.length;
+      encryptionDictionaryObjectId = this.objectCount;
+      this.write(`${encryptionDictionaryObjectId} 0 obj`);
+      this.write("<<");
+      this.write("/Filter /Standard");
+      this.write("/V 1");
+      this.write("/R 2");
+      this.write(
+        `/O <${ExtendedString.toHex(this.pdfSecurity.encryptedOwnerHash).toUpperCase()}>`,
+      );
+      this.write(
+        `/U <${ExtendedString.toHex(this.pdfSecurity.encryptedUserHash).toUpperCase()}>`,
+      );
+      this.write(`/P ${this.pdfSecurity.permissionBytes}`);
+      this.write("/EncryptMetadata true");
+      this.write(">>");
+      this.write("endobj");
+    }
 
     /**
      * Metadata
@@ -543,33 +585,93 @@ export default class PaperBit {
       date.getMinutes(),
       date.getSeconds(),
     ];
-    this.offsets[2] = this.buffer.length;
-    this.write("2 0 obj");
+    this.offsets[++this.objectCount] = this.buffer.length;
+    const metadataDictionaryObjectId = this.objectCount;
+    const metadata = {
+      createdOn: `D:${sprintf("%02d%02d%02d%02d%02d%02d", ...timestamp)}`,
+      modifiedOn: `D:${sprintf("%02d%02d%02d%02d%02d%02d", ...timestamp)}`,
+      author: "PaperBit",
+      producer: "PaperBit",
+      creator: "PaperBit",
+    };
+    this.write(`${metadataDictionaryObjectId} 0 obj`);
     this.write(
-      `<</CreationDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...timestamp)})/ModDate (D:${sprintf("%02d%02d%02d%02d%02d%02d", ...timestamp)})/Author(PaperBit)/Creator(PaperBit)/Producer(PaperBit)>>`,
+      `<</CreationDate(${
+        this.pdfSecurity !== null
+          ? ExtendedString.fromUint8ArrayToString(
+              this.pdfSecurity.encryptStream(
+                this.objectCount,
+                0,
+                metadata.createdOn,
+              ),
+            )
+          : metadata.createdOn
+      })/ModDate(${
+        this.pdfSecurity !== null
+          ? ExtendedString.fromUint8ArrayToString(
+              this.pdfSecurity.encryptStream(
+                this.objectCount,
+                0,
+                metadata.modifiedOn,
+              ),
+            )
+          : metadata.modifiedOn
+      })/Author(${
+        this.pdfSecurity !== null
+          ? ExtendedString.fromUint8ArrayToString(
+              this.pdfSecurity.encryptStream(
+                this.objectCount,
+                0,
+                metadata.author,
+              ),
+            )
+          : metadata.author
+      })/Creator(${
+        this.pdfSecurity !== null
+          ? ExtendedString.fromUint8ArrayToString(
+              this.pdfSecurity.encryptStream(
+                this.objectCount,
+                0,
+                metadata.creator,
+              ),
+            )
+          : metadata.creator
+      })/Producer(${
+        this.pdfSecurity !== null
+          ? ExtendedString.fromUint8ArrayToString(
+              this.pdfSecurity.encryptStream(
+                this.objectCount,
+                0,
+                metadata.producer,
+              ),
+            )
+          : metadata.producer
+      })>>`,
+    );
+    this.write("endobj\n");
+
+    /**
+     * Resources
+     */
+    this.offsets[++this.objectCount] = this.buffer.length;
+    const resourcesDictionaryObjectId = this.objectCount;
+    this.write(`${resourcesDictionaryObjectId} 0 obj`);
+    this.write(
+      `<</Font<<____FONTS_PLACEHOLDER____>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI]/XObject<<____IMAGES_PLACEHOLDER____>>>>`,
     );
     this.write("endobj\n");
 
     /**
      * Page Indexes
      */
-    this.offsets[3] = this.buffer.length;
+    this.offsets[++this.objectCount] = this.buffer.length;
+    const pageIndexesDictionaryObjectId = this.objectCount;
     let kids = "/Kids [ ";
     for (let i = 0; i < this.pages.length; i++) {
-      kids += `${5 + 2 * i} 0 R `;
+      kids += `${pageIndexesDictionaryObjectId + 1 + 2 * i} 0 R `;
     }
-    this.write("3 0 obj");
+    this.write(`${pageIndexesDictionaryObjectId} 0 obj`);
     this.write(`<</Count ${this.pages.length}${kids}]/Type/Pages>>`);
-    this.write("endobj\n");
-
-    /**
-     * Resources
-     */
-    this.offsets[4] = this.buffer.length;
-    this.write("4 0 obj");
-    this.write(
-      `<</Font<<____FONTS_PLACEHOLDER____>>/ProcSet[/PDF/Text/ImageB/ImageC/ImageI]/XObject<<____IMAGES_PLACEHOLDER____>>>>`,
-    );
     this.write("endobj\n");
 
     /**
@@ -578,7 +680,7 @@ export default class PaperBit {
     for (let i = 0; i < this.pages.length; i++) {
       this.createObject();
       this.write(
-        `<</Contents ${this.objectCount + 1} 0 R ${sprintf("/MediaBox[0 0 %.2f %.2f]", this.pageWidth, this.pageHeight)}/Parent 3 0 R /Resources 4 0 R /Type/Page>>`,
+        `<</Contents ${this.objectCount + 1} 0 R ${sprintf("/MediaBox[0 0 %.2f %.2f]", this.pageWidth, this.pageHeight)}/Parent ${pageIndexesDictionaryObjectId} 0 R /Resources ${resourcesDictionaryObjectId} 0 R /Type/Page>>`,
       );
       this.write("endobj\n");
 
@@ -588,7 +690,15 @@ export default class PaperBit {
       this.createObject();
       this.write(`<</Filter/FlateDecode/Length ${bufferLength}>>`);
       this.createStream(
-        ExtendedString.fromUint8ArrayToString(compressedContent),
+        ExtendedString.fromUint8ArrayToString(
+          this.pdfSecurity !== null
+            ? this.pdfSecurity.encryptStream(
+                this.objectCount,
+                0,
+                compressedContent,
+              )
+            : compressedContent,
+        ),
       );
       this.write("endobj\n");
     }
@@ -606,30 +716,6 @@ export default class PaperBit {
     for (let imageId in this.images) {
       this.putImage(parseInt(imageId));
     }
-
-    /**
-     * Cross-Ref Table
-     */
-    const bufferLength = this.buffer.length;
-    this.write("xref");
-    this.write(`0 ${this.objectCount + 1}`);
-    this.write("0000000000 65535 f ");
-    for (let i = 1; i <= this.objectCount; i++) {
-      this.write(sprintf("%010d 00000 n ", this.offsets[i]));
-    }
-
-    /**
-     * Trailer
-     */
-    this.write("trailer");
-    this.write("<<");
-    this.write(`/Root 1 0 R`);
-    this.write(`/Info 2 0 R`);
-    this.write(`/Size ${this.objectCount + 1}`);
-    this.write(">>");
-    this.write("startxref");
-    this.write(`${bufferLength}`);
-    this.write("%%EOF");
 
     /**
      * Replace Fonts Placeholder with actual resource data.
@@ -656,6 +742,36 @@ export default class PaperBit {
       "____IMAGES_PLACEHOLDER____",
       resource.trim(),
     );
+
+    /**
+     * Cross-Ref Table
+     */
+    const bufferLength = this.buffer.length - this.headerLength;
+    this.write("xref");
+    this.write(`0 ${this.objectCount + 1}`);
+    this.write("0000000000 65535 f ");
+    for (let i = 1; i <= this.objectCount; i++) {
+      this.write(sprintf("%010d 00000 n ", this.offsets[i]));
+    }
+
+    /**
+     * Trailer
+     */
+    this.write("trailer");
+    this.write("<<");
+    this.write(`/Size ${this.objectCount + 1}`);
+    this.write(`/Root ${rootDictionaryObjectId} 0 R`);
+    this.write(`/Info ${metadataDictionaryObjectId} 0 R`);
+    if (encryptionDictionaryObjectId !== null && this.pdfSecurity !== null) {
+      this.write(`/Encrypt ${encryptionDictionaryObjectId} 0 R`);
+    }
+    this.write(
+      `/ID [ <${ExtendedString.toHex(this.pdfIdentifier).toUpperCase()}> <${ExtendedString.toHex(this.pdfIdentifier).toUpperCase()}> ]`,
+    );
+    this.write(">>");
+    this.write("startxref");
+    this.write(`${bufferLength}`);
+    this.write("%%EOF");
 
     let len = this.buffer.length;
     let pdfBinary = new ArrayBuffer(len);
@@ -696,7 +812,13 @@ export default class PaperBit {
     this.createObject();
     this.offsets[this.objectCount] = this.buffer.length;
     this.write(`<</Filter/FlateDecode/Length ${fontData.length}>>`);
-    this.createStream(fontData);
+    this.createStream(
+      ExtendedString.fromUint8ArrayToString(
+        this.pdfSecurity !== null
+          ? this.pdfSecurity.encryptStream(this.objectCount, 0, fontData)
+          : fontData,
+      ),
+    );
     this.write("endobj\n");
   }
 
@@ -707,7 +829,17 @@ export default class PaperBit {
     this.write(
       `<</BitsPerComponent ${this.images[imgIndex].bitsPerComponent}/ColorSpace/${this.images[imgIndex].colorSpace}/Filter/${this.images[imgIndex].filter}/Height ${this.images[imgIndex].height}/Length ${this.images[imgIndex].length}/Subtype/Image/Type/XObject/Width ${this.images[imgIndex].width}>>`,
     );
-    this.createStream(this.images[imgIndex].data);
+    this.createStream(
+      this.pdfSecurity !== null
+        ? ExtendedString.fromUint8ArrayToString(
+            this.pdfSecurity.encryptStream(
+              this.objectCount,
+              0,
+              this.images[imgIndex].data,
+            ),
+          )
+        : this.images[imgIndex].data,
+    );
     this.write("endobj\n");
   }
 

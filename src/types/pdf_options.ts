@@ -32,4 +32,11 @@ export default interface PDFOptions {
     horizontal: number;
     vertical: number;
   };
+  security?: {
+    password: {
+      owner: string;
+      user: string;
+    };
+    permissions: Set<"print" | "modify" | "copy" | "annot-forms">;
+  };
 }
