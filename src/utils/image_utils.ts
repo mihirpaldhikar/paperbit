@@ -170,5 +170,5 @@ function getJpegDimensions(uint8Array: Uint8Array): {
     offset += 2 + (uint8Array[offset + 2] << 8) + uint8Array[offset + 3];
   }
 
-  throw new Error("Coudn't calculate the dimensions of the Image.");
+  throw new Error("Couldn't calculate the dimensions of the Image.");
 }
