@@ -40,6 +40,7 @@ const rollupConfiguration = [
                 sourcemap: true
             }
         ],
+        external: ["sprintf-js", "opentype.js", "pako", "@pdf-lib/upng"],
         plugins: [
             commonjs({
                 transformMixedEsModules: true,
