@@ -43,12 +43,12 @@
     "eslint-config-prettier": "^10.0.2",
     "eslint-plugin-prettier": "^5.2.3",
     "globals": "^16.0.0",
-    "prettier": "^3.5.2",
+    "prettier": "^3.5.3",
     "rollup": "^4.34.9",
     "rollup-plugin-dts": "^6.1.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.25.0"
+    "typescript-eslint": "^8.26.0"
   },
   "dependencies": {
     "@pdf-lib/upng": "^1.0.1",
